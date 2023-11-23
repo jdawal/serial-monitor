@@ -20,6 +20,10 @@ def monitor_serial_port(port, baudrate=9600):
         print(f"Error: {e}")
     except KeyboardInterrupt:
         print("\nMonitoring stopped.")
+    finally:
+        if ser.is_open:
+            ser.close()
+            print("Serial port closed.")
 
 
 if __name__ == "__main__":
