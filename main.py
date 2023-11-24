@@ -14,7 +14,18 @@ def monitor_serial_port(port, baudrate=9600):
 
             # Print the received data
             if data:
-                print(f"Received data: {data}")
+                
+                print(f"Received data: {data.hex()}")
+
+                 # Check for user input
+            if ser.in_waiting == 0:
+                user_input = input("Enter a hex message to send on the serial port (or press Enter to skip): ")
+                
+                # If the user entered a hex message, send it on the serial port with checksum
+                if user_input:
+                    hex_data = bytes.fromhex(user_input)
+                    ser.write(hex_data.encode('utf-8'))
+                    print(f"Sent message: {hex_data}")
 
     except serial.SerialException as e:
         print(f"Error: {e}")
