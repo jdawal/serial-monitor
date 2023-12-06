@@ -1,4 +1,7 @@
 import serial
+import os
+import time
+import configparser
 import logging
 
 # Configure logging to write to a text file
@@ -9,49 +12,70 @@ logging.basicConfig(
 )
 
 
-def monitor_serial_port(port, baudrate=9600):
+# Read config function
+def read_config():
+    config = configparser.ConfigParser()
+    config.read("config.ini")
+    return config
+
+
+# Setup logger
+def setup_logger():
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+
+# MAIN FUNCTION TO MONITOR SERIAL
+def monitor_serial_port(port, baudrate=9600, log_folder="C:\\logs", log_interval=10):
     try:
+        # Ensure the logs folder exists
+        os.makedirs(log_folder, exist_ok=True)
+
         ser = serial.Serial(port, baudrate, timeout=1)
-        print(
+        logging.info(
             f"Monitoring serial port {port} at {baudrate} baudrate. Press Ctrl+C to exit."
         )
 
         while True:
-            try:
-                # Read data from the serial port as binary
-                data = ser.read(ser.in_waiting)
+            # Read raw bytes from the serial port
+            data = ser.read(ser.in_waiting)
 
-                # Print the received data as raw bytes
-                if data:
-                    received_data = data.hex()
-                    print(f"Received data (raw bytes): {data}")
-                    print(f"Received HEX data: {received_data}")
+            # Print the decoded UTF-8 representation of the raw bytes
+            if data:
+                try:
+                    decoded_data = data.decode("utf-8")
+                    hex_data = data.hex()
+                    logging.info(f"Received data: {decoded_data}, Hex: {hex_data}")
+                except UnicodeDecodeError as decode_error:
+                    logging.error(f"Error decoding data: {decode_error}")
 
-                    # Log the received data to the text file
-                    logging.info(f"Received data (raw bytes): {data}")
-                    logging.info(f"Received HEX data: {received_data}")
-
-                    # bytesData = "b'\x02'b'\x06'b'\xb1'b'\x03b'\x07"
-                    hex_input = "02064d0307"
-                    hex_data = bytes.fromhex(hex_input)
-
-                    ser.write(hex_data)
-
-            except serial.SerialException as e:
-                print(f"Serial port error: {e}")
-                logging.error(f"Serial port error: {e}")
+            # Log data to a text file based on the specified interval
+            if time.time() % log_interval == 0:
+                log_serial_data(decoded_data, log_folder)
 
     except serial.SerialException as e:
-        print(f"Error: {e}")
         logging.error(f"Error: {e}")
     except KeyboardInterrupt:
-        print("\nMonitoring stopped.")
+        logging.info("\nMonitoring stopped.")
     finally:
         if ser.is_open:
             ser.close()
-            print("Serial port closed.")
+            logging.info("Serial port closed.")
+
+
+def log_serial_data(data, log_folder):
+    log_file_path = os.path.join(log_folder, "serial_log.txt")
+    with open(log_file_path, "a") as file:
+        file.write(f"{time.ctime()}: {data}\n")
 
 
 if __name__ == "__main__":
-    port_name = "COM5"  # Change this to the appropriate port name
-    monitor_serial_port(port_name)
+    setup_logger()
+    config = read_config()
+    serial_port = config.get("SerialConfig", "port")
+    serial_baudrate = config.getint("SerialConfig", "baudrate")
+
+    log_folder = config.get("LogConfig", "folder")
+    log_interval = config.getint("LogConfig", "interval")
+
+    monitor_serial_port(serial_port, serial_baudrate, log_folder, log_interval)
